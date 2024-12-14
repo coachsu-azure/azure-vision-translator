@@ -1,10 +1,10 @@
-
 """
-    Azure AI 電腦視覺與翻譯工具(單機版)
+    Azure AI 電腦視覺與翻譯工具(API 版)
 """
 import os
 import pathlib
 from dotenv import load_dotenv
+from flask import Flask, request
 from azure.ai.translation.text import TextTranslationClient, TranslatorCredential
 from azure.ai.translation.text.models import InputTextItem
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
@@ -21,9 +21,6 @@ VISION_ENDPOINT = os.getenv('VISION_ENDPOINT')
 TRANSLATOR_KEY = os.getenv('TRANSLATOR_KEY')
 TRANSLATOR_REGION = os.getenv('TRANSLATOR_REGION')
 TRANSLATOR_ENDPOINT = os.getenv('TRANSLATOR_ENDPOINT')
-
-# 影像 URL
-IMAGE = 'https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg'
 
 def image_analysis(image):
     """
@@ -52,6 +49,18 @@ def translator(target):
 
     return responses
 
-text_en = image_analysis(IMAGE)
-text_zh_Hant = translator(text_en.text)
-print(text_zh_Hant[0].translations[0].text)
+app = Flask(__name__)
+
+@app.route("/", methods=['GET', 'POST'])
+def object_detection():
+    """
+        image: 影像 URL
+    """
+    image = request.args.get('image')
+
+    text_en = image_analysis(image)
+    text_zh_hant = translator(text_en.text)
+    return text_zh_hant[0].translations[0].text
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)

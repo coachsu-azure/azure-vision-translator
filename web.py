@@ -1,48 +1,75 @@
-from flask import Flask, request
-from azure.cognitiveservices.vision.computervision import ComputerVisionClient
-from msrest.authentication import CognitiveServicesCredentials
+"""
+    Azure AI 電腦視覺與翻譯工具(網頁版)
+"""
+import os
+import pathlib
+from dotenv import load_dotenv
+from flask import Flask, request, render_template
 from azure.ai.translation.text import TextTranslationClient, TranslatorCredential
 from azure.ai.translation.text.models import InputTextItem
+from azure.cognitiveservices.vision.computervision import ComputerVisionClient
+from msrest.authentication import CognitiveServicesCredentials
 
-# 以下資訊可以從 Azure 電腦視覺服務取得(正式上線時不要直接把金鑰跟服務端點寫在程式碼裡)
-C_KEY = '' # 填入金鑰
-C_ENDPOINT = '' # 填入端點
+# 如果.env存在，讀取.env檔案
+env_path = pathlib.Path(".env")
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path, override=True)
 
-# 以下資訊可以從 Azure 翻譯服務取得(正式上線時不要直接把金鑰跟服務端點寫在程式碼裡)
-T_REGION = '' # 填入位置/區域
-T_KEY = '' # 填入金鑰
-T_ENDPOINT = '' # 填入文字翻譯的 Web API
+# 取得環境變數
+VISION_KEY = os.getenv('VISION_KEY')
+VISION_ENDPOINT = os.getenv('VISION_ENDPOINT')
+TRANSLATOR_KEY = os.getenv('TRANSLATOR_KEY')
+TRANSLATOR_REGION = os.getenv('TRANSLATOR_REGION')
+TRANSLATOR_ENDPOINT = os.getenv('TRANSLATOR_ENDPOINT')
 
-def ImageAnalysis(image):
+def image_analysis(image):
+    """
+        圖片分析(英文描述)
+    """
     client = ComputerVisionClient(
-        endpoint=C_ENDPOINT,
-        credentials=CognitiveServicesCredentials(C_KEY)
+        endpoint=VISION_ENDPOINT,
+        credentials=CognitiveServicesCredentials(VISION_KEY)
     )
     analysis = client.describe_image(url=image, max_candidates=1, language="en")
 
     return analysis.captions[0]
 
-def Translator(target):
+def translator(target):
+    """
+        翻譯(英文翻譯成繁體中文)
+    """
     text_translator = TextTranslationClient(
-        endpoint=T_ENDPOINT,
-        credential=TranslatorCredential(T_KEY, T_REGION)
+        endpoint=TRANSLATOR_ENDPOINT,
+        credential=TranslatorCredential(TRANSLATOR_KEY, TRANSLATOR_REGION)
     )
     targets = []
     targets.append(InputTextItem(text=target))
 
     responses = text_translator.translate(content=targets, to=["zh-hant"], from_parameter="en")
-    
+
     return responses
 
 app = Flask(__name__)
 
 @app.route("/", methods=['GET', 'POST'])
 def object_detection():
-    IMAGE = request.args.get('image')
+    """
+        image: 影像 URL
+    """
+    image  = ""
+    description = ""
 
-    text_en = ImageAnalysis(IMAGE)
-    text_zh_Hant = Translator(text_en.text)
-    return text_zh_Hant[0].translations[0].text
+    if request.method == 'POST':
+        image = request.form.get("image_url")
+
+        text_en = image_analysis(image)
+        text_zh_hant = translator(text_en.text)[0].translations[0].text
+
+        description = f"{text_zh_hant}"
+
+    return render_template("index.html",
+                           image=image,
+                           description=description)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
